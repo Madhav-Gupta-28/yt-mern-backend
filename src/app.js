@@ -1,8 +1,13 @@
 import express from "express";
 import cors from "cors";
 import  healthcheckRouter from "./routes/healthcheck.routes.js";
+import cookieParser from "cookie-parser";
+import userRouter from "./routes/user.routes.js";
+import { errorHandler } from "./middlewares/error.middlewares.js";
+
 const app = express();
 
+app.use(cookieParser());
 
 // Common Middlewares
 app.use(cors({
@@ -22,5 +27,9 @@ app.use(express.urlencoded({
 app.use(express.static("public"))
 
 app.use("/api/v1/healthcheck", healthcheckRouter);
+
+app.use("/api/v1/user", userRouter);
+
+app.use(errorHandler);
 
 export  {app} ;
