@@ -62,4 +62,65 @@ const registerUser = asyncHandler(async(req,res) => {
     return res.status(200).json(new APIResponse(200 ,user ,"User created successfully" ))
 })
 
-export {registerUser}
+
+const generateAccessTokenandRefreshToken = async(userId) => {
+    try {
+        const user = await User.findById(userId);
+    
+        if(!user){
+            throw new ApiError(404 , "User not found");
+        }
+    
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+    
+        user.refreshToken = refreshToken;
+        await user.save({validateBeforeSave : false});
+    
+        return {accessToken , refreshToken};
+    } catch (error) {
+        throw new ApiError(500 , "Internal server error Someting Went Wrong When Generating Access Token and Refresh Token");
+    }
+}
+
+const loginUser = asyncHandler(async(req,res) => {
+
+
+    // get data from body
+    const {username , email , password} = req.body;
+
+    if(!username && !email || !password){
+        throw new ApiError(400 , "All fields are required username or email and password");
+    }
+
+    const user = await User.findOne({$or : [{username} , {email}]});
+
+    if(!user){
+        throw new ApiError(400 , "Invalid username or email");
+    }
+
+    const isPasswordCorrect = await user.isPasswordCorrect(password);
+
+    if(!isPasswordCorrect){
+        throw new ApiError(400 , "Invalid password");
+    }
+
+    const {accessToken , refreshToken} = await generateAccessTokenandRefreshToken(user._id);
+
+    const loggedInUser = await user.findById(user._id).select("-password -refreshToken");
+
+    if(!loggedInUser){
+        throw new ApiError(404 , "User not found");
+    }
+
+    loggedInUser.refreshToken = refreshToken;
+    await loggedInUser.save({validateBeforeSave : false});
+    
+    return res.status(200)
+    .cookie("accessToken" , accessToken , {httpOnly : true , secure : process.env.NODE_ENV !== "production" })
+    .cookie("refreshToken" , refreshToken , {httpOnly : true , secure : process.env.NODE_ENV !== "production" })
+    .json(new APIResponse(200 , {user : loggedInUser , accessToken , refreshToken} , "User logged in successfully"));
+
+})
+
+export {registerUser , generateAccessTokenandRefreshToken , loginUser}
